@@ -1,9 +1,18 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { RetryJobData, TikTokEventsPayload } from '../types';
 import { TikTokAPIClient } from '../clients/tiktok-api-client';
-import { getRedis } from '../deduplication/redis-dedup';
 import { logger } from '../logging/logger';
 import { env } from '../config/env';
+
+function bullmqConnection() {
+  return {
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD || undefined,
+    tls: env.REDIS_TLS ? {} : undefined,
+    maxRetriesPerRequest: null,
+  };
+}
 
 const QUEUE_NAME = 'tiktok-events';
 
@@ -17,7 +26,7 @@ let queueEvents: QueueEvents | null = null;
 export function getQueue(): Queue<RetryJobData> {
   if (!queue) {
     queue = new Queue<RetryJobData>(QUEUE_NAME, {
-      connection: getRedis(),
+      connection: bullmqConnection(),
       defaultJobOptions: {
         attempts: env.TIKTOK_MAX_RETRIES,
         backoff: {
@@ -31,7 +40,7 @@ export function getQueue(): Queue<RetryJobData> {
 
     logger.info({ queueName: QUEUE_NAME }, 'BullMQ queue initialised');
   }
-  return queue;
+  return queue!;
 }
 
 /**
@@ -92,7 +101,7 @@ export function startWorker(client: TikTokAPIClient): Worker<RetryJobData> {
       return response;
     },
     {
-      connection: getRedis(),
+      connection: bullmqConnection(),
       concurrency: 5,
       limiter: {
         max: env.TIKTOK_RATE_LIMIT_RPS,
@@ -127,7 +136,7 @@ export function startWorker(client: TikTokAPIClient): Worker<RetryJobData> {
 export function attachQueueEvents(): QueueEvents {
   if (queueEvents) return queueEvents;
 
-  queueEvents = new QueueEvents(QUEUE_NAME, { connection: getRedis() });
+  queueEvents = new QueueEvents(QUEUE_NAME, { connection: bullmqConnection() });
 
   queueEvents.on('waiting', ({ jobId }) => {
     logger.debug({ jobId }, 'Job waiting');

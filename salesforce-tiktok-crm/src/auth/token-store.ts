@@ -8,6 +8,10 @@ const TOKEN_CACHE_PREFIX = 'tiktok:token:';
 // Cache access tokens for 23 h — refresh 1 hour before they expire
 const TOKEN_CACHE_TTL_SECONDS = 23 * 60 * 60;
 
+const OAUTH_STATE_PREFIX = 'tiktok:oauth:state:';
+// State tokens expire after 10 minutes
+const OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
 /**
  * Token Store
  *
@@ -147,6 +151,27 @@ export class TokenStore {
     );
     await this.redis.del(`${TOKEN_CACHE_PREFIX}${advertiserId}`);
     logger.info({ advertiserId }, 'Token revoked');
+  }
+
+  // ── OAuth State (CSRF) ──────────────────────────────────────────────────────
+
+  /**
+   * Store a one-time OAuth state token in Redis for CSRF verification (10-min TTL).
+   */
+  async storeState(state: string): Promise<void> {
+    const key = `${OAUTH_STATE_PREFIX}${state}`;
+    await this.redis.set(key, state, 'EX', OAUTH_STATE_TTL_SECONDS);
+  }
+
+  /**
+   * Retrieve and atomically delete an OAuth state token.
+   * Returns an object with .value if found, or null if expired/missing.
+   */
+  async getAndDeleteState(state: string): Promise<{ value: string; redirectAfter?: string } | null> {
+    const key = `${OAUTH_STATE_PREFIX}${state}`;
+    const value = await this.redis.getdel(key);
+    if (!value) return null;
+    return { value };
   }
 
   // ── Cache helpers ───────────────────────────────────────────────────────────

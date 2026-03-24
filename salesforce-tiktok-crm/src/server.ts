@@ -65,10 +65,19 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 async function bootstrap(): Promise<void> {
   // Shared infrastructure
   const pg = new Pool({
-    connectionString: env.POSTGRES_URL,
+    host: env.POSTGRES_HOST,
+    port: env.POSTGRES_PORT,
+    database: env.POSTGRES_DB,
+    user: env.POSTGRES_USER,
+    password: env.POSTGRES_PASSWORD,
     ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
   });
-  const redis = new Redis(env.REDIS_URL ?? 'redis://localhost:6379');
+  const redis = new Redis({
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
+    tls: env.REDIS_TLS ? {} : undefined,
+  });
 
   // Auth layer
   const tokenStore = new TokenStore(pg, redis);
@@ -92,7 +101,7 @@ async function bootstrap(): Promise<void> {
   // Start background jobs
   startWorker(tiktokClient);
   attachQueueEvents();
-  proactiveRefresher.start();
+  // proactiveRefresher.start(); // Disabled — TikTok access tokens are long-lived
 
   // Start Salesforce CDC listener
   const listener = new SalesforceCDCListener(

@@ -1,7 +1,6 @@
 import {
   SalesforceCDCEvent,
   FilterResult,
-  TikTokEventName,
   SalesforceChangeType,
   TikTokStandardEvent,
 } from '../types';

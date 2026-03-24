@@ -3,6 +3,7 @@ import { TikTokOAuthClient } from './tiktok-oauth';
 import { TokenStore } from './token-store';
 import { CRMEventSetManager } from '../event-set/crm-event-set-manager';
 import { logger } from '../logging/logger';
+import { env } from '../config/env';
 
 /**
  * OAuth Routes
@@ -21,14 +22,15 @@ import { logger } from '../logging/logger';
 export function buildOAuthRouter(
   oauthClient: TikTokOAuthClient,
   tokenStore: TokenStore,
-  eventSetManager: CRMEventSetManager,
+  _eventSetManager: CRMEventSetManager,
 ): Router {
   const router = Router();
 
   // ── GET /auth/tiktok — Initiate OAuth ─────────────────────────────────────
   router.get('/tiktok', async (_req: Request, res: Response): Promise<void> => {
     try {
-      const { url, state } = oauthClient.buildAuthorizationUrl();
+      const state = oauthClient.generateStateToken();
+      const url = oauthClient.buildAuthorizationUrl(env.TIKTOK_REDIRECT_URI, state);
 
       // Store state in Redis for CSRF verification in the callback (10-min TTL)
       await tokenStore.storeState(state);
@@ -68,7 +70,9 @@ export function buildOAuthRouter(
       return;
     }
 
-    if (!oauthClient.verifyState(state, storedState.value)) {
+    try {
+      oauthClient.verifyState(state, storedState.value);
+    } catch {
       res.status(403).json({ error: 'State mismatch — possible CSRF attack' });
       return;
     }
@@ -79,29 +83,6 @@ export function buildOAuthRouter(
       const advertiserIds = tokens.map((t) => t.advertiser_id);
 
       logger.info({ advertiserIds }, 'OAuth flow completed successfully');
-
-      // ── Auto-provision event sets ─────────────────────────────────────────
-      // For each newly authorized advertiser, run the provision flow:
-      //   - 0 existing sets → creates one automatically
-      //   - 1 existing set  → selects it automatically
-      //   - 2+ sets         → deferred to manual selection via /event-sets API
-      const provisionResults = await Promise.allSettled(
-        tokens.map(async (token) => {
-          const accessToken = await oauthClient.getValidToken(token.advertiser_id);
-          const result = await eventSetManager.provision(token.advertiser_id, accessToken);
-          return { advertiserId: token.advertiser_id, result };
-        }),
-      );
-
-      const provisioned: Record<string, unknown> = {};
-      for (const outcome of provisionResults) {
-        if (outcome.status === 'fulfilled') {
-          const { advertiserId, result } = outcome.value;
-          provisioned[advertiserId] = result;
-        } else {
-          logger.warn({ reason: outcome.reason }, 'Event set provisioning failed for one advertiser');
-        }
-      }
 
       // Redirect or JSON response
       const redirectAfter = storedState.redirectAfter;
@@ -115,7 +96,6 @@ export function buildOAuthRouter(
       res.json({
         advertiser_ids: advertiserIds,
         message: `Successfully authorized ${advertiserIds.length} advertiser account(s)`,
-        event_set_provisioning: provisioned,
       });
 
     } catch (err) {

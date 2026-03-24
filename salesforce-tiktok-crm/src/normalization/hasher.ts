@@ -39,8 +39,8 @@ export class Hasher {
     return {
       email:        Hasher.sha256(Normalizer.email(user.email)),
       phone_number: Hasher.sha256(Normalizer.phone(user.phone)),  // field name: phone_number
-      first_name:   Hasher.sha256(Normalizer.name(user.first_name)),
-      last_name:    Hasher.sha256(Normalizer.name(user.last_name)),
+      first_name:   Hasher.sha256(Normalizer.nameField(user.first_name)),
+      last_name:    Hasher.sha256(Normalizer.nameField(user.last_name)),
       city:         Hasher.sha256(Normalizer.geo(user.city)),
       state:        Hasher.sha256(Normalizer.geo(user.state)),
       zip:          Hasher.sha256(Normalizer.zip(user.zip)),
