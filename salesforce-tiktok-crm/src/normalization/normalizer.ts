@@ -43,7 +43,7 @@ export class Normalizer {
   /**
    * Name fields: trim + lowercase
    */
-  static name(raw: string | undefined): string | undefined {
+  static nameField(raw: string | undefined): string | undefined {
     if (!raw) return undefined;
     const normalized = raw.trim().toLowerCase();
     return normalized.length > 0 ? normalized : undefined;

@@ -134,7 +134,7 @@ export class TikTokAPIClient {
     const eventIds = payload.data.map((e) => e.event_id);
     logger.info({ eventCount: payload.data.length, eventIds }, 'Sending events to TikTok');
 
-    const response = await this.http.post<TikTokAPIResponse>('/event/track', payload, {
+    const response = await this.http.post<TikTokAPIResponse>('/event/track/', payload, {
       headers: { 'Access-Token': accessToken },
     });
 
@@ -142,9 +142,11 @@ export class TikTokAPIClient {
 
     if (result.code !== 0) {
       const err = new Error(`TikTok API returned non-zero code: ${result.code} — ${result.message}`);
-      logger.error({ code: result.code, message: result.message, requestId: result.request_id }, 'TikTok API business logic error');
+      logger.error({ code: result.code, message: result.message, requestId: result.request_id, response: result }, 'TikTok API business logic error');
       throw err;
     }
+
+    logger.info({ code: result.code, message: result.message, requestId: result.request_id, response: result }, 'TikTok API success');
 
     return result;
   }

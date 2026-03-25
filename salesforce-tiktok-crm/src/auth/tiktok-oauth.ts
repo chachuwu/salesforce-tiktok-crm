@@ -4,7 +4,6 @@ import {
   TikTokTokenResponse,
   TikTokRefreshResponse,
   StoredToken,
-  OAuthState,
 } from './types';
 import { TokenStore } from './token-store';
 import { env } from '../config/env';
